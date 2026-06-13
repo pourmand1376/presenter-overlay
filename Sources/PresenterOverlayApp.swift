@@ -20,7 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let cameraManager = CameraManager()
 
     private let minSize: CGFloat = 80
-    private let maxSize: CGFloat = 400
+    private let maxSize: CGFloat = 600
     private let defaultSize: CGFloat = 200
     private let portraitRatio: CGFloat = 3.0 / 4.0   // width / height (tall)
     private let landscapeRatio: CGFloat = 4.0 / 3.0  // width / height (wide)
