@@ -19,10 +19,14 @@ class OverlayWindow: NSWindow {
 
         isOpaque = false
         backgroundColor = .clear
-        level = .floating
+        level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         hasShadow = false
         isMovableByWindowBackground = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+    }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
     }
 
     override func scrollWheel(with event: NSEvent) {
