@@ -13,7 +13,7 @@ struct PresenterOverlayApp {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var overlayWindow: OverlayWindow!
     var containerView: ShapeHitTestView!
     var statusItem: NSStatusItem!
@@ -38,18 +38,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Window
 
     private func setupWindow() {
-        let frame = NSRect(x: 0, y: 0, width: defaultSize, height: defaultSize)
+        let savedFrame = Settings.windowFrame
+        let initialWidth = savedFrame.map { max(minSize, min(maxSize, $0.width)) } ?? defaultSize
+        let initialSize = windowSize(forWidth: initialWidth)
+        let frame = NSRect(origin: .zero, size: initialSize)
         overlayWindow = OverlayWindow(
             contentRect: frame,
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        overlayWindow.delegate = self
 
         let contentView = ContentView(cameraManager: cameraManager)
         let hostingView = NSHostingView(rootView: contentView)
 
-        containerView = ShapeHitTestView(frame: NSRect(x: 0, y: 0, width: defaultSize, height: defaultSize))
+        containerView = ShapeHitTestView(frame: NSRect(origin: .zero, size: initialSize))
+        containerView.shape = cameraManager.overlayShape
         containerView.autoresizingMask = [.width, .height]
         hostingView.frame = containerView.bounds
         hostingView.autoresizingMask = [.width, .height]
@@ -68,15 +73,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.resizeWindow(to: newWidth)
         }
 
-        // Position at bottom-right of screen
-        if let screen = NSScreen.main {
+        // Restore saved origin if it still lies on a visible screen; otherwise place bottom-right.
+        if let savedFrame, NSScreen.screens.contains(where: { $0.visibleFrame.intersects(NSRect(origin: savedFrame.origin, size: initialSize)) }) {
+            overlayWindow.setFrameOrigin(savedFrame.origin)
+        } else if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
-            let x = screenFrame.maxX - defaultSize - 20
+            let x = screenFrame.maxX - initialSize.width - 20
             let y = screenFrame.minY + 20
             overlayWindow.setFrameOrigin(NSPoint(x: x, y: y))
         }
 
         overlayWindow.makeKeyAndOrderFront(nil)
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        Settings.windowFrame = overlayWindow.frame
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        Settings.windowFrame = overlayWindow.frame
     }
 
     @objc private func handleMagnification(_ gesture: NSMagnificationGestureRecognizer) {
@@ -137,15 +152,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Shape submenu
         let shapeMenu = NSMenu()
-        for (title, action, isDefault) in [
-            ("Circle", #selector(setShape(_:)) as Selector, true),
-            ("Squircle", #selector(setShape(_:)) as Selector, false),
-            ("Portrait", #selector(setShape(_:)) as Selector, false),
-            ("Landscape", #selector(setShape(_:)) as Selector, false),
-        ] as [(String, Selector, Bool)] {
-            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        for (title, shape) in [
+            ("Circle", OverlayShape.circle),
+            ("Squircle", OverlayShape.squircle),
+            ("Portrait", OverlayShape.portrait),
+            ("Landscape", OverlayShape.landscape),
+        ] {
+            let item = NSMenuItem(title: title, action: #selector(setShape(_:)), keyEquivalent: "")
             item.target = self
-            item.state = isDefault ? .on : .off
+            item.state = (cameraManager.overlayShape == shape) ? .on : .off
             shapeMenu.addItem(item)
         }
         let shapeItem = NSMenuItem(title: "Shape", action: nil, keyEquivalent: "")

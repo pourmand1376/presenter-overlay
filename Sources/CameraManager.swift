@@ -12,12 +12,12 @@ enum OverlayShape: String {
 
 class CameraManager: NSObject, ObservableObject {
     let session = AVCaptureSession()
-    @Published var isMirrored = true
-    @Published var backgroundRemoval = false
-    @Published var shade = true
-    @Published var overlayShape: OverlayShape = .circle
+    @Published var isMirrored: Bool { didSet { Settings.isMirrored = isMirrored } }
+    @Published var backgroundRemoval: Bool { didSet { Settings.backgroundRemoval = backgroundRemoval } }
+    @Published var shade: Bool { didSet { Settings.shade = shade } }
+    @Published var overlayShape: OverlayShape { didSet { Settings.overlayShape = overlayShape } }
     @Published var availableCameras: [AVCaptureDevice] = []
-    @Published var currentCamera: AVCaptureDevice?
+    @Published var currentCamera: AVCaptureDevice? { didSet { Settings.cameraUniqueID = currentCamera?.uniqueID } }
     @Published var processedFrame: CGImage?
 
     private var currentInput: AVCaptureDeviceInput?
@@ -32,6 +32,10 @@ class CameraManager: NSObject, ObservableObject {
     }()
 
     override init() {
+        isMirrored = Settings.isMirrored
+        backgroundRemoval = Settings.backgroundRemoval
+        shade = Settings.shade
+        overlayShape = Settings.overlayShape
         super.init()
         discoverCameras()
     }
@@ -53,9 +57,13 @@ class CameraManager: NSObject, ObservableObject {
             session.removeInput(currentInput)
         }
 
-        // Select camera
+        // Select camera: explicit argument > saved preference > current > system default
+        let savedCamera = Settings.cameraUniqueID.flatMap { id in
+            availableCameras.first { $0.uniqueID == id }
+        }
         let camera = device
             ?? currentCamera
+            ?? savedCamera
             ?? AVCaptureDevice.default(for: .video)
 
         guard let camera = camera else {
